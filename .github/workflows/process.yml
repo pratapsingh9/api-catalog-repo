@@ -29,6 +29,9 @@ jobs:
 
       - name: Create clean ZIP package
         run: |
+          # Create directories
+          mkdir -p packages
+          
           # Create timestamp-based filename
           RELEASE_NAME="apis-$(date +'%Y%m%d-%H%M%S')"
           
@@ -42,8 +45,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            packages/*.zip
+          files: packages/*.zip
           tag_name: "release-$(date +'%Y%m%d')"
           prerelease: false
           generate_release_notes: true
