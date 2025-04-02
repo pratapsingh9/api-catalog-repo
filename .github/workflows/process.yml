@@ -42,11 +42,11 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            generated/**/*.json
+            generated/final.json
             releases/generated-json-${{ github.run_id }}.zip
           tag_name: "v${{ github.run_number }}"
           name: "JSON Conversion v${{ github.run_number }}"
-          body: "Automated release of converted JSON files from YAML sources"
+          body: "Automated release of combined JSON from YAML sources"
           draft: false
           prerelease: false
           generate_release_notes: true

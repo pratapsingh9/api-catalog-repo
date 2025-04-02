@@ -19,10 +19,14 @@ void main() {
     Directory(releasesDir).createSync(recursive: true);
     Directory(outputDir).createSync(recursive: true);
 
-    // Process YAML files
-    print('📦 Processing YAML files...');
-    final processor = YamlProcessor(sourcesDir, outputDir);
-    processor.convertFiles();
+    // Process YAML files into a single JSON
+    print('📦 Processing YAML files into single final.json...');
+    final combinedJson = processAllYamlFiles(sourcesDir);
+
+    // Write the combined JSON to final.json
+    final outputFile = File(path.join(outputDir, 'final.json'));
+    outputFile.writeAsStringSync(JsonEncoder.withIndent('  ').convert(combinedJson));
+    print('✓ Created final.json');
 
     // Create ZIP archive
     final zipName = 'generated-json-$runId.zip';
@@ -39,54 +43,32 @@ void main() {
   }
 }
 
-class YamlProcessor {
-  final String sourcesDir;
-  final String outputDir;
-
-  YamlProcessor(this.sourcesDir, this.outputDir);
-
-  void convertFiles() {
-    final files = _findYamlFiles();
-    if (files.isEmpty) throw Exception('No YAML files found in $sourcesDir');
-    
-    print('Found ${files.length} YAML file(s):');
-    files.forEach(_processFile);
-  }
-
-  List<File> _findYamlFiles() => Directory(sourcesDir)
+Map<String, dynamic> processAllYamlFiles(String sourcesDir) {
+  final combined = <String, dynamic>{};
+  final files = Directory(sourcesDir)
       .listSync(recursive: true)
       .whereType<File>()
-      .where((f) => _isYaml(f.path))
+      .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'))
       .toList();
 
-  void _processFile(File file) {
+  if (files.isEmpty) throw Exception('No YAML files found in $sourcesDir');
+  
+  print('Found ${files.length} YAML file(s):');
+  
+  for (final file in files) {
     try {
-      final json = _convertToJson(file.readAsStringSync(), file.path);
-      final outputPath = _getOutputPath(file);
+      final content = file.readAsStringSync();
+      final json = jsonDecode(jsonEncode(loadYaml(content)));
+      final fileName = path.basenameWithoutExtension(file.path);
       
-      File(outputPath)
-        ..createSync(recursive: true)
-        ..writeAsStringSync(JsonEncoder.withIndent('  ').convert(json));
-      
-      print('  ✓ ${path.basename(file.path)} → ${path.relative(outputPath, from: outputDir)}');
+      combined[fileName] = json;
+      print('  ✓ Added ${path.basename(file.path)} to final.json');
     } catch (e) {
       throw Exception('Failed to process ${file.path}: $e');
     }
   }
-
-  String _getOutputPath(File source) => path.join(
-    outputDir,
-    path.relative(source.path, from: sourcesDir)
-      .replaceAll(RegExp(r'\.ya?ml$'), '.json')
-  );
-
-  bool _isYaml(String path) => path.endsWith('.yaml') || path.endsWith('.yml');
-
-  Map<String, dynamic> _convertToJson(String content, String path) {
-    return _isYaml(path) 
-      ? jsonDecode(jsonEncode(loadYaml(content)))
-      : jsonDecode(content);
-  }
+  
+  return combined;
 }
 
 class ZipCreator {
