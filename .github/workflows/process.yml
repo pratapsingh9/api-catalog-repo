@@ -31,10 +31,14 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
 
+      - name: Get zip file name
+        id: zipfile
+        run: echo "name=api-specs-${{ github.run_id }}.zip" >> $GITHUB_OUTPUT
+
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: releases/*.zip
+          files: releases/${{ steps.zipfile.outputs.name }}
           tag_name: "v${{ github.run_id }}"
           name: "API Specs v${{ github.run_id }}"
           body: "Automated release of processed OpenAPI specifications"
