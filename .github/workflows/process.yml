@@ -1,4 +1,4 @@
-name: Release Generated Folder
+name: Release Generated Folder Only
 on:
   push:
     branches: [main]
@@ -12,13 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Proper Dart setup
       - name: Install Dart
         uses: dart-lang/setup-dart@v1
         with:
-          version: '3.2.1'  # Specify your Dart version
+          version: '3.2.1'
 
-      # Generate JSON files
       - name: Generate JSON specs
         run: |
           dart pub get
@@ -28,8 +26,7 @@ jobs:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
-      # Verify generated files exist
-      - name: Check generated files
+      - name: Verify generated files
         run: |
           if [ ! -d "generated" ] || [ -z "$(ls -A generated)" ]; then
             echo "❌ Error: No files in generated directory"
@@ -37,30 +34,27 @@ jobs:
           fi
           echo "✅ Generated files verified"
 
-      # Create clean ZIP (only generated folder contents)
-      - name: Create ZIP package
+      - name: Create Clean ZIP
         run: |
           TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
           
-          # Create ZIP with proper structure
-          (cd generated && zip -r ../generated-$TIMESTAMP.zip .)
+          # KEY FIX: Use '*/.' to only include contents
+          (cd generated && zip -r ../generated-$TIMESTAMP.zip */.)
           
-          # Verify ZIP contents
+          # Debug output
           echo "ZIP contents:"
           unzip -l generated-$TIMESTAMP.zip
           
-          # Prepare release asset
           mkdir -p release_assets
           mv generated-$TIMESTAMP.zip release_assets/
           echo "ZIP_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
           echo "RELEASE_TAG=generated-$TIMESTAMP" >> $GITHUB_ENV
 
-      # Create GitHub Release
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.ZIP_PATH }}
           tag_name: ${{ env.RELEASE_TAG }}
-          name: "Generated API Specs (${{ env.RELEASE_TAG }})"
-          body: "Automated release containing only generated JSON files"
+          name: "API Specs (${{ env.RELEASE_TAG }})"
+          body: "Contains only the generated JSON files"
           prerelease: false
