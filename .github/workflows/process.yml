@@ -1,4 +1,4 @@
-name: Release Generated Folder
+name: Release Generated Folder Only
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Generate your JSON files (keep your existing steps)
+      # Generate your JSON files
       - name: Generate JSON specs
         run: |
           dart pub get
@@ -22,25 +22,32 @@ jobs:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
-      # Create ZIP of ONLY the generated folder
-      - name: Create ZIP package
+      # Create ZIP of ONLY the generated folder contents
+      - name: Create Clean ZIP
         run: |
-          TIMESTAMP=$(date +'%Y%m%d')
+          # Create timestamp
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
           
-          # Create ZIP with clean structure (no parent folders)
-          (cd generated && zip -r ../generated-$TIMESTAMP.zip .)
+          # Create ZIP with PROPER structure
+          cd generated
+          zip -r ../generated-$TIMESTAMP.zip *
+          cd ..
           
-          # Move to release assets folder
+          # Verify ZIP contents (debugging)
+          unzip -l generated-$TIMESTAMP.zip
+          
+          # Prepare release asset
           mkdir -p release_assets
           mv generated-$TIMESTAMP.zip release_assets/
-          echo "ZIP_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
+          echo "ASSET_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
+          echo "RELEASE_TAG=generated-$TIMESTAMP" >> $GITHUB_ENV
 
       # Create GitHub Release
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ env.ZIP_PATH }}
-          tag_name: "generated-${{ env.TIMESTAMP }}"
-          name: "Generated API Specs (${{ env.TIMESTAMP }})"
-          body: "Automated release of processed API specifications"
+          files: ${{ env.ASSET_PATH }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Generated API Specs (${{ env.RELEASE_TAG }})"
+          body: "Contains only the generated JSON files"
           prerelease: false
