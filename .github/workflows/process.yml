@@ -1,14 +1,13 @@
-name: Process API Specs
-on: 
+name: API Specs Processing and Release
+on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  process:
+  process_and_release:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: write
     
@@ -16,9 +15,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
       - uses: dart-lang/setup-dart@v1
-      
+
       - name: Install dependencies
         run: dart pub get
         working-directory: ./scripts
@@ -29,11 +27,27 @@ jobs:
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
-      
-      - name: Commit and push changes
+
+      - name: Commit changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config --global user.name "API Catalog Bot"
           git config --global user.email "bot@apicatalog.com"
           git add generated/
           git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generated API specs [skip ci]"
           git push
+
+      - name: Create release ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p releases
+          zip -r releases/latest.zip generated/
+          echo "ZIP created at releases/latest.zip"
+
+      - name: Upload Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: releases/latest.zip
+          tag_name: "v$(date +'%Y.%m.%d')"
+          generate_release_notes: true
