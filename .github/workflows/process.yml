@@ -1,11 +1,11 @@
-name: API Specs Release
+name: Convert YAML to JSON and Release
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 jobs:
-  release:
+  convert-and-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,28 +19,34 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        run: dart pub get
+        run: dart pub add yaml path archive
         working-directory: ./scripts
 
-      - name: Create releases directory
-        run: mkdir -p releases
+      - name: Create directories
+        run: |
+          mkdir -p generated
+          mkdir -p releases
 
-      - name: Process specs and create release
-        run: dart run processor.dart
+      - name: Run conversion script
+        run: dart run convert.dart
         working-directory: ./scripts
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
 
-      - name: Get zip file name
-        id: zipfile
-        run: echo "name=api-specs-${{ github.run_id }}.zip" >> $GITHUB_OUTPUT
+      - name: Clean up old releases
+        run: |
+          # Keep only the last 5 releases
+          ls -t releases/*.zip | tail -n +6 | xargs rm -f || true
 
-      - name: Upload Release Assets
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: releases/${{ steps.zipfile.outputs.name }}
-          tag_name: "v${{ github.run_id }}"
-          name: "API Specs v${{ github.run_id }}"
-          body: "Automated release of processed OpenAPI specifications"
+          files: |
+            generated/**/*.json
+            releases/generated-json-${{ github.run_id }}.zip
+          tag_name: "v${{ github.run_number }}"
+          name: "JSON Conversion v${{ github.run_number }}"
+          body: "Automated release of converted JSON files from YAML sources"
           draft: false
           prerelease: false
+          generate_release_notes: true

@@ -15,15 +15,22 @@ void main() {
     final outputDir = path.join(projectRoot, 'generated');
     final releasesDir = path.join(projectRoot, 'releases');
 
-    // Process specs
-    print('📦 Processing API specs...');
-    final processor = ApiProcessor(sourcesDir, outputDir);
-    processor.convertSpecs();
+    // Create directories if they don't exist
+    Directory(releasesDir).createSync(recursive: true);
+    Directory(outputDir).createSync(recursive: true);
 
-    // Create ZIP
-    final zipName = 'api-specs-$runId.zip';
+    // Process YAML files
+    print('📦 Processing YAML files...');
+    final processor = YamlProcessor(sourcesDir, outputDir);
+    processor.convertFiles();
+
+    // Create ZIP archive
+    final zipName = 'generated-json-$runId.zip';
     final zipPath = path.join(releasesDir, zipName);
     ZipCreator.createFromDirectory(outputDir, zipPath);
+    
+    // Clean up old releases (keep last 5)
+    _cleanOldReleases(releasesDir);
     
     print('\n✅ Successfully created $zipPath');
   } catch (e) {
@@ -32,21 +39,21 @@ void main() {
   }
 }
 
-class ApiProcessor {
+class YamlProcessor {
   final String sourcesDir;
   final String outputDir;
 
-  ApiProcessor(this.sourcesDir, this.outputDir);
+  YamlProcessor(this.sourcesDir, this.outputDir);
 
-  void convertSpecs() {
-    final files = _findSpecFiles();
+  void convertFiles() {
+    final files = _findYamlFiles();
     if (files.isEmpty) throw Exception('No YAML files found in $sourcesDir');
     
-    print('Found ${files.length} specification file(s):');
+    print('Found ${files.length} YAML file(s):');
     files.forEach(_processFile);
   }
 
-  List<File> _findSpecFiles() => Directory(sourcesDir)
+  List<File> _findYamlFiles() => Directory(sourcesDir)
       .listSync(recursive: true)
       .whereType<File>()
       .where((f) => _isYaml(f.path))
@@ -115,5 +122,30 @@ class ZipCreator {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+  }
+}
+
+void _cleanOldReleases(String releasesDir) {
+  try {
+    final releaseFiles = Directory(releasesDir)
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.zip'))
+        .toList();
+
+    if (releaseFiles.length > 5) {
+      print('\n🧹 Cleaning up old releases (keeping latest 5)...');
+      // Sort by modified time (newest first)
+      releaseFiles.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+      
+      // Delete all but the newest 5
+      for (var i = 5; i < releaseFiles.length; i++) {
+        final file = releaseFiles[i];
+        print('  - Deleting ${path.basename(file.path)}');
+        file.deleteSync();
+      }
+    }
+  } catch (e) {
+    print('⚠️ Could not clean old releases: $e');
   }
 }
