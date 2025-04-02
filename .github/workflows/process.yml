@@ -1,56 +1,46 @@
-name: API Specs Processor
+name: Release Generated Folder
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  process_and_package:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dart-lang/setup-dart@v1
 
-      - name: Install dependencies
-        run: dart pub get
-        working-directory: ./scripts
-      
+      # Generate your JSON files (keep your existing steps)
       - name: Generate JSON specs
-        run: dart run processor.dart
+        run: |
+          dart pub get
+          dart run processor.dart
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
-      - name: Verify generated files exist
+      # Create ZIP of ONLY the generated folder
+      - name: Create ZIP package
         run: |
-          if [ ! -d "generated" ] || [ -z "$(ls -A generated)" ]; then
-            echo "Error: No files were generated in the 'generated' directory"
-            exit 1
-          fi
-
-      - name: Create clean ZIP package
-        run: |
-          mkdir -p packages
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          RELEASE_NAME="apis-$TIMESTAMP"
+          TIMESTAMP=$(date +'%Y%m%d')
           
-          # Create ZIP with proper structure
-          (cd generated && zip -r ../packages/${RELEASE_NAME}.zip .)
+          # Create ZIP with clean structure (no parent folders)
+          (cd generated && zip -r ../generated-$TIMESTAMP.zip .)
           
-          echo "ZIP created at packages/${RELEASE_NAME}.zip"
-          echo "RELEASE_TAG=release-${TIMESTAMP%_*}" >> $GITHUB_ENV
+          # Move to release assets folder
+          mkdir -p release_assets
+          mv generated-$TIMESTAMP.zip release_assets/
+          echo "ZIP_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
 
-      - name: Upload Release Asset
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # Create GitHub Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          files: packages/*.zip
-          tag_name: ${{ env.RELEASE_TAG }}
+          files: ${{ env.ZIP_PATH }}
+          tag_name: "generated-${{ env.TIMESTAMP }}"
+          name: "Generated API Specs (${{ env.TIMESTAMP }})"
+          body: "Automated release of processed API specifications"
           prerelease: false
-          generate_release_notes: true
