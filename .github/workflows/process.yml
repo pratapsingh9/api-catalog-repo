@@ -1,28 +1,39 @@
 name: Process API Specs
-on: [push, pull_request]
+on: 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   process:
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
       - uses: dart-lang/setup-dart@v1
-        
+      
       - name: Install dependencies
         run: dart pub get
         working-directory: ./scripts
-        
+      
       - name: Process specs
         run: dart run processor.dart
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
-          
-      - name: Commit changes
+      
+      - name: Commit and push changes
         run: |
           git config --global user.name "API Catalog Bot"
           git config --global user.email "bot@apicatalog.com"
           git add generated/
-          git commit -m "Update generated JSON" || echo "No changes"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generated API specs [skip ci]"
           git push
