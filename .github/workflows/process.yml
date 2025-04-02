@@ -12,11 +12,13 @@ jobs:
       contents: write
     
     steps:
+      # Checkout and setup Dart
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: dart-lang/setup-dart@v1
 
+      # Process API specs
       - name: Install dependencies
         run: dart pub get
         working-directory: ./scripts
@@ -28,6 +30,7 @@ jobs:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
+      # Only commit changes on push to main (not PR)
       - name: Commit changes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -37,6 +40,7 @@ jobs:
           git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generated API specs [skip ci]"
           git push
 
+      # Create and upload release (only on push to main)
       - name: Create release ZIP
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -44,10 +48,15 @@ jobs:
           zip -r releases/latest.zip generated/
           echo "ZIP created at releases/latest.zip"
 
+      - name: Get current date
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: date
+        run: echo "RELEASE_DATE=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
       - name: Upload Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
           files: releases/latest.zip
-          tag_name: "v$(date +'%Y.%m.%d')"
+          tag_name: "v${{ steps.date.outputs.RELEASE_DATE }}"
           generate_release_notes: true
