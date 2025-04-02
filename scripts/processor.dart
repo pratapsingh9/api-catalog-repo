@@ -6,21 +6,27 @@ import 'package:archive/archive.dart';
 
 void main() {
   try {
-    final projectRoot = path.dirname(Platform.script.toFilePath());
+    // Get the correct project root (two levels up from script location)
+    final scriptDir = path.dirname(Platform.script.toFilePath());
+    final projectRoot = path.normalize(path.join(scriptDir, '..'));
+    
+    // Set directory paths
     final sourcesDir = path.join(projectRoot, 'sources');
     final releasesDir = path.join(projectRoot, 'releases');
 
-    // Create required directories
-    Directory(releasesDir).createSync(recursive: true);
+    // Debug: Print directory structure
+    print('📂 Project structure:');
+    print('  Project root: $projectRoot');
+    print('  Sources dir: $sourcesDir');
+    print('  Releases dir: $releasesDir');
     
-    // Verify sources directory exists
+    // Verify directories exist
     if (!Directory(sourcesDir).existsSync()) {
-      throw Exception('Missing "sources" directory');
+      Directory(sourcesDir).createSync(recursive: true);
+      print('ℹ️ Created sources directory as it didn\'t exist');
     }
 
-    // Create temporary output directory
-    final tempOutput = Directory(path.join(Directory.systemTemp.path, 'json_output'));
-    tempOutput.createSync(recursive: true);
+    Directory(releasesDir).createSync(recursive: true);
 
     // Process YAML files
     final yamlFiles = Directory(sourcesDir)
@@ -31,10 +37,15 @@ void main() {
 
     if (yamlFiles.isEmpty) {
       print('ℹ️ No YAML files found in sources directory');
+      // Create empty final.zip even if no files found
+      _createEmptyZip(releasesDir);
       exit(0);
     }
 
     print('🚀 Processing ${yamlFiles.length} YAML files:');
+    final tempOutput = Directory(path.join(Directory.systemTemp.path, 'json_output'));
+    tempOutput.createSync(recursive: true);
+
     for (final file in yamlFiles) {
       try {
         final yamlContent = file.readAsStringSync();
@@ -52,11 +63,10 @@ void main() {
 
     // Create final.zip
     final zipFile = File(path.join(releasesDir, 'final.zip'));
-    createZip(tempOutput.path, zipFile.path);
+    _createZip(tempOutput.path, zipFile.path);
     
     // Cleanup
     tempOutput.deleteSync(recursive: true);
-
     print('\n✅ Success! Created final.zip');
 
   } catch (e) {
@@ -65,7 +75,7 @@ void main() {
   }
 }
 
-void createZip(String sourceDir, String zipPath) {
+void _createZip(String sourceDir, String zipPath) {
   final archive = Archive();
   final files = Directory(sourceDir).listSync(recursive: true).whereType<File>();
 
@@ -81,4 +91,15 @@ void createZip(String sourceDir, String zipPath) {
   File(zipPath)
     ..parent.createSync(recursive: true)
     ..writeAsBytesSync(ZipEncoder().encode(archive)!);
+}
+
+void _createEmptyZip(String releasesDir) {
+  final zipFile = File(path.join(releasesDir, 'final.zip'));
+  final archive = Archive();
+  
+  File(zipFile.path)
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(ZipEncoder().encode(archive)!);
+  
+  print('ℹ️ Created empty final.zip (no YAML files found)');
 }

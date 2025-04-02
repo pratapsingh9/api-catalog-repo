@@ -23,7 +23,7 @@ jobs:
         run: dart pub get
         working-directory: ./scripts
 
-      - name: Create directories
+      - name: Ensure directories exist
         run: |
           mkdir -p sources
           mkdir -p releases
