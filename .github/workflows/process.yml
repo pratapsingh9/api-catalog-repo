@@ -37,4 +37,4 @@ jobs:
           name: "API Specs v${{ github.run_number }}"
           body: "Automated release of processed OpenAPI specifications"
           draft: false
-          prerelease: false 
+          prerelease: false
