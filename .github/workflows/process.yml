@@ -1,4 +1,4 @@
-name: API Specs Processing and Release
+name: API Specs Processor
 on:
   push:
     branches: [ main ]
@@ -6,57 +6,44 @@ on:
     branches: [ main ]
 
 jobs:
-  process_and_release:
+  process_and_package:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     
     steps:
-      # Checkout and setup Dart
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      
       - uses: dart-lang/setup-dart@v1
 
-      # Process API specs
       - name: Install dependencies
         run: dart pub get
         working-directory: ./scripts
       
-      - name: Process specs
+      - name: Generate JSON specs
         run: dart run processor.dart
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
-      # Only commit changes on push to main (not PR)
-      - name: Commit changes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Create clean ZIP package
         run: |
-          git config --global user.name "API Catalog Bot"
-          git config --global user.email "bot@apicatalog.com"
-          git add generated/
-          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generated API specs [skip ci]"
-          git push
+          # Create timestamp-based filename
+          RELEASE_NAME="apis-$(date +'%Y%m%d-%H%M%S')"
+          
+          # Create ZIP with clean structure
+          cd generated
+          zip -r ../packages/${RELEASE_NAME}.zip .
+          
+          echo "ZIP created at packages/${RELEASE_NAME}.zip"
 
-      # Create and upload release (only on push to main)
-      - name: Create release ZIP
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          mkdir -p releases
-          zip -r releases/latest.zip generated/
-          echo "ZIP created at releases/latest.zip"
-
-      - name: Get current date
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: date
-        run: echo "RELEASE_DATE=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-
-      - name: Upload Release
+      - name: Upload Release Asset
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          files: releases/latest.zip
-          tag_name: "v${{ steps.date.outputs.RELEASE_DATE }}"
+          files: |
+            packages/*.zip
+          tag_name: "release-$(date +'%Y%m%d')"
+          prerelease: false
           generate_release_notes: true
