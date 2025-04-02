@@ -1,55 +1,46 @@
-name: API Specs Processor
+name: Release Generated Folder
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  process_and_package:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: dart-lang/setup-dart@v1
 
-      - name: Install dependencies
-        run: dart pub get
-        working-directory: ./scripts
-      
+      # Generate your JSON files (keep your existing steps)
       - name: Generate JSON specs
-        run: dart run processor.dart
+        run: |
+          dart pub get
+          dart run processor.dart
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
 
-      - name: Create clean ZIP package
+      # Create ZIP of ONLY the generated folder
+      - name: Create ZIP package
         run: |
-          # Create directories
-          mkdir -p packages
+          TIMESTAMP=$(date +'%Y%m%d')
           
-          # Create timestamp-based filename
-          RELEASE_NAME="apis-$(date +'%Y%m%d-%H%M%S')"
+          # Create ZIP with clean structure (no parent folders)
+          (cd generated && zip -r ../generated-$TIMESTAMP.zip .)
           
-          # Create ZIP with clean structure
-          cd generated
-          zip -r ../packages/${RELEASE_NAME}.zip .
-          
-          echo "ZIP created at packages/${RELEASE_NAME}.zip"
+          # Move to release assets folder
+          mkdir -p release_assets
+          mv generated-$TIMESTAMP.zip release_assets/
+          echo "ZIP_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
 
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
-      - name: Upload Release Asset
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # Create GitHub Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          files: packages/*.zip
-          tag_name: "release-${{ steps.date.outputs.date }}"
+          files: ${{ env.ZIP_PATH }}
+          tag_name: "generated-${{ env.TIMESTAMP }}"
+          name: "Generated API Specs (${{ env.TIMESTAMP }})"
+          body: "Automated release of processed API specifications"
           prerelease: false
-          generate_release_notes: true
