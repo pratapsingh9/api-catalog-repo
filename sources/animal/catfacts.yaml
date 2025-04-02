@@ -1,0 +1,48 @@
+openapi: "3.0.0"
+info:
+  title: "Cat Facts API"
+  version: "1.0.0"
+  description: "A free API to get random cat facts. No API key required."
+servers:
+  - url: "https://catfact.ninja"
+paths:
+  /fact:
+    get:
+      summary: "Get a random cat fact"
+      operationId: "getRandomCatFact"
+      responses:
+        "200":
+          description: "A random cat fact."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatFact"
+  /facts:
+    get:
+      summary: "Get multiple cat facts"
+      operationId: "getMultipleCatFacts"
+      parameters:
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            default: 5
+      responses:
+        "200":
+          description: "A list of cat facts."
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/CatFact"
+components:
+  schemas:
+    CatFact:
+      type: "object"
+      properties:
+        fact:
+          type: "string"
+        length:
+          type: "integer"
