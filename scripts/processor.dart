@@ -5,29 +5,31 @@ import 'package:path/path.dart' as path;
 import 'package:archive/archive.dart';
 
 void main() {
-  // Get paths relative to the script location
-  final scriptDir = path.dirname(Platform.script.toFilePath());
-  final projectRoot = path.normalize(path.join(scriptDir, '..'));
-  
-  // Set default directories
-  final sourcesDir = path.join(projectRoot, 'sources');
-  final outputDir = path.join(projectRoot, 'generated');
-  final releasesDir = path.join(projectRoot, 'releases');
+  try {
+    // Get environment variables
+    final runId = Platform.environment['GITHUB_RUN_ID'] ?? 'local';
+    
+    // Set directory paths
+    final projectRoot = path.normalize(path.join(path.dirname(Platform.script.toFilePath()), '..'));
+    final sourcesDir = path.join(projectRoot, 'sources');
+    final outputDir = path.join(projectRoot, 'generated');
+    final releasesDir = path.join(projectRoot, 'releases');
 
-  // Convert specs to JSON
-  print('Processing OpenAPI specs from: $sourcesDir');
-  final processor = ApiProcessor(sourcesDir, outputDir);
-  processor.convertSpecs();
+    // Process specs
+    print('📦 Processing API specs...');
+    final processor = ApiProcessor(sourcesDir, outputDir);
+    processor.convertSpecs();
 
-  // Create ZIP archive
-  final timestamp = DateTime.now().toIso8601String().replaceAll(RegExp(r'[^0-9]'), '').substring(0, 14);
-  final zipName = 'openapi-specs-$timestamp.zip';
-  final zipPath = path.join(releasesDir, zipName);
-  
-  print('Creating ZIP archive at: $zipPath');
-  ZipCreator.create(releasesDir, zipPath, sourceDir: outputDir);
-  
-  print('✅ Processing completed successfully');
+    // Create ZIP
+    final zipName = 'api-specs-$runId.zip';
+    final zipPath = path.join(releasesDir, zipName);
+    ZipCreator.createFromDirectory(outputDir, zipPath);
+    
+    print('\n✅ Successfully created $zipPath');
+  } catch (e) {
+    print('\n❌ Error: $e');
+    exit(1);
+  }
 }
 
 class ApiProcessor {
@@ -38,72 +40,58 @@ class ApiProcessor {
 
   void convertSpecs() {
     final files = _findSpecFiles();
-    if (files.isEmpty) {
-      print('⚠️ No YAML files found in $sourcesDir');
-      return;
-    }
+    if (files.isEmpty) throw Exception('No YAML files found in $sourcesDir');
     
-    print('Found ${files.length} YAML file(s) to process');
+    print('Found ${files.length} specification file(s):');
     files.forEach(_processFile);
   }
 
-  List<File> _findSpecFiles() {
-    return Directory(sourcesDir)
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => _isYaml(f.path))
-        .toList();
-  }
+  List<File> _findSpecFiles() => Directory(sourcesDir)
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => _isYaml(f.path))
+      .toList();
 
   void _processFile(File file) {
     try {
-      final content = file.readAsStringSync();
-      final json = _convertToJson(content, file.path);
-      
+      final json = _convertToJson(file.readAsStringSync(), file.path);
       final outputPath = _getOutputPath(file);
+      
       File(outputPath)
         ..createSync(recursive: true)
         ..writeAsStringSync(JsonEncoder.withIndent('  ').convert(json));
       
-      print('  Converted: ${path.basename(file.path)} → ${path.relative(outputPath, from: outputDir)}');
+      print('  ✓ ${path.basename(file.path)} → ${path.relative(outputPath, from: outputDir)}');
     } catch (e) {
-      print('❌ Error processing ${file.path}: $e');
-      exit(1);
+      throw Exception('Failed to process ${file.path}: $e');
     }
   }
 
-  String _getOutputPath(File source) {
-    final relative = path.relative(source.path, from: sourcesDir);
-    return path.join(outputDir, relative.replaceAll(RegExp(r'\.ya?ml$'), '.json'));
-  }
+  String _getOutputPath(File source) => path.join(
+    outputDir,
+    path.relative(source.path, from: sourcesDir)
+      .replaceAll(RegExp(r'\.ya?ml$'), '.json')
+  );
 
   bool _isYaml(String path) => path.endsWith('.yaml') || path.endsWith('.yml');
 
   Map<String, dynamic> _convertToJson(String content, String path) {
-    if (_isYaml(path)) {
-      return jsonDecode(jsonEncode(loadYaml(content)));
-    }
-    return jsonDecode(content);
+    return _isYaml(path) 
+      ? jsonDecode(jsonEncode(loadYaml(content)))
+      : jsonDecode(content);
   }
 }
 
 class ZipCreator {
-  static void create(String releasesDir, String zipPath, {required String sourceDir}) {
+  static void createFromDirectory(String sourceDir, String zipPath) {
     try {
-      Directory(releasesDir).createSync(recursive: true);
+      print('\n🗜 Creating ZIP archive...');
       final archive = Archive();
-      final files = Directory(sourceDir)
-        .listSync(recursive: true)
-        .whereType<File>()
-        .toList();
+      final files = Directory(sourceDir).listSync(recursive: true).whereType<File>();
       
-      if (files.isEmpty) {
-        print('⚠️ No files found to include in ZIP at $sourceDir');
-        return;
-      }
+      if (files.isEmpty) throw Exception('No files found in $sourceDir');
       
-      print('Adding ${files.length} file(s) to ZIP');
-      for (final file in files) {
+      files.forEach((file) {
         final relativePath = path.relative(file.path, from: sourceDir);
         archive.addFile(ArchiveFile(
           relativePath,
@@ -111,16 +99,21 @@ class ZipCreator {
           file.readAsBytesSync()
         ));
         print('  + $relativePath');
-      }
+      });
 
-      final zipBytes = ZipEncoder().encode(archive);
-      if (zipBytes == null) throw Exception('Failed to create ZIP');
+      File(zipPath)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(ZipEncoder().encode(archive)!);
       
-      File(zipPath).writeAsBytesSync(zipBytes);
-      print('ZIP created (${(zipBytes.length / 1024).toStringAsFixed(2)} KB)');
+      print('✓ Created ${path.basename(zipPath)} (${_formatSize(File(zipPath).lengthSync())})');
     } catch (e) {
-      print('❌ Error creating ZIP: $e');
-      exit(1);
+      throw Exception('ZIP creation failed: $e');
     }
+  }
+
+  static String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1048576).toStringAsFixed(1)} MB';
   }
 }

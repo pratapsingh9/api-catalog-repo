@@ -22,19 +22,21 @@ jobs:
         run: dart pub get
         working-directory: ./scripts
 
+      - name: Create releases directory
+        run: mkdir -p releases
+
       - name: Process specs and create release
         run: dart run processor.dart
         working-directory: ./scripts
         env:
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            releases/openapi-specs-*.zip
-          tag_name: "v${{ github.run_number }}"
-          name: "API Specs v${{ github.run_number }}"
+          files: releases/*.zip
+          tag_name: "v${{ github.run_id }}"
+          name: "API Specs v${{ github.run_id }}"
           body: "Automated release of processed OpenAPI specifications"
           draft: false
           prerelease: false
