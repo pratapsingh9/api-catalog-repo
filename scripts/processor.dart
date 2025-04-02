@@ -6,125 +6,79 @@ import 'package:archive/archive.dart';
 
 void main() {
   try {
-    // Get environment variables
-    final runId = Platform.environment['GITHUB_RUN_ID'] ?? 'local';
-    
-    // Set directory paths
-    final projectRoot = path.normalize(path.join(path.dirname(Platform.script.toFilePath()), '..'));
-    final inputDir = path.join(projectRoot, 'generated');
+    final projectRoot = path.dirname(Platform.script.toFilePath());
+    final sourcesDir = path.join(projectRoot, 'sources');
     final releasesDir = path.join(projectRoot, 'releases');
 
-    // Create directories if they don't exist
+    // Create required directories
     Directory(releasesDir).createSync(recursive: true);
+    
+    // Verify sources directory exists
+    if (!Directory(sourcesDir).existsSync()) {
+      throw Exception('Missing "sources" directory');
+    }
 
-    // Process all JSON files in the generated directory
-    final jsonFiles = Directory(inputDir)
-        .listSync()
+    // Create temporary output directory
+    final tempOutput = Directory(path.join(Directory.systemTemp.path, 'json_output'));
+    tempOutput.createSync(recursive: true);
+
+    // Process YAML files
+    final yamlFiles = Directory(sourcesDir)
+        .listSync(recursive: true)
         .whereType<File>()
-        .where((f) => f.path.endsWith('.json'))
+        .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'))
         .toList();
 
-    if (jsonFiles.isEmpty) {
-      throw Exception('No JSON files found in $inputDir');
+    if (yamlFiles.isEmpty) {
+      print('ℹ️ No YAML files found in sources directory');
+      exit(0);
     }
 
-    print('Found ${jsonFiles.length} JSON file(s) to process:');
-    
-    // Process each JSON file to YAML and create individual zip files
-    for (final jsonFile in jsonFiles) {
+    print('🚀 Processing ${yamlFiles.length} YAML files:');
+    for (final file in yamlFiles) {
       try {
-        final fileName = path.basenameWithoutExtension(jsonFile.path);
-        final yamlContent = _convertJsonToYaml(jsonFile);
+        final yamlContent = file.readAsStringSync();
+        final jsonData = jsonDecode(jsonEncode(loadYaml(yamlContent)));
+        final fileName = '${path.basenameWithoutExtension(file.path)}.json';
         
-        // Create a temporary directory for the YAML file
-        final tempDir = Directory(path.join(Directory.systemTemp.path, 'yaml_temp_$fileName'));
-        tempDir.createSync(recursive: true);
+        File(path.join(tempOutput.path, fileName))
+          ..writeAsStringSync(JsonEncoder.withIndent('  ').convert(jsonData));
         
-        // Write the YAML file
-        final yamlFile = File(path.join(tempDir.path, '$fileName.yaml'));
-        yamlFile.writeAsStringSync(yamlContent);
-        
-        // Create zip file
-        final zipName = '$fileName-$runId.zip';
-        final zipPath = path.join(releasesDir, zipName);
-        ZipCreator.createFromDirectory(tempDir.path, zipPath);
-        
-        // Clean up temporary directory
-        tempDir.deleteSync(recursive: true);
-        
-        print('✓ Created $zipPath');
+        print('✓ ${path.basename(file.path)} → $fileName');
       } catch (e) {
-        throw Exception('Failed to process ${jsonFile.path}: $e');
+        print('⚠️ Error processing ${path.basename(file.path)}: $e');
       }
     }
+
+    // Create final.zip
+    final zipFile = File(path.join(releasesDir, 'final.zip'));
+    createZip(tempOutput.path, zipFile.path);
     
-    // Clean up old releases (keep last 5)
-    _cleanOldReleases(releasesDir);
-    
-    print('\n✅ Successfully created ${jsonFiles.length} ZIP file(s) in $releasesDir');
+    // Cleanup
+    tempOutput.deleteSync(recursive: true);
+
+    print('\n✅ Success! Created final.zip');
+
   } catch (e) {
-    print('\n❌ Error: $e');
+    print('\n❌ Fatal error: $e');
     exit(1);
   }
 }
 
-String _convertJsonToYaml(File jsonFile) {
-  try {
-    final jsonContent = jsonFile.readAsStringSync();
-    final jsonData = jsonDecode(jsonContent);
-    return jsonData is Map ? YamlMap.wrap(jsonData).toString() : jsonData.toString();
-  } catch (e) {
-    throw Exception('JSON to YAML conversion failed: $e');
+void createZip(String sourceDir, String zipPath) {
+  final archive = Archive();
+  final files = Directory(sourceDir).listSync(recursive: true).whereType<File>();
+
+  for (final file in files) {
+    final relativePath = path.relative(file.path, from: sourceDir);
+    archive.addFile(ArchiveFile(
+      relativePath,
+      file.lengthSync(),
+      file.readAsBytesSync()
+    ));
   }
-}
 
-class ZipCreator {
-  static void createFromDirectory(String sourceDir, String zipPath) {
-    try {
-      final archive = Archive();
-      final files = Directory(sourceDir).listSync(recursive: true).whereType<File>();
-      
-      if (files.isEmpty) throw Exception('No files found in $sourceDir');
-      
-      files.forEach((file) {
-        final relativePath = path.relative(file.path, from: sourceDir);
-        archive.addFile(ArchiveFile(
-          relativePath,
-          file.lengthSync(),
-          file.readAsBytesSync()
-        ));
-      });
-
-      File(zipPath)
-        ..parent.createSync(recursive: true)
-        ..writeAsBytesSync(ZipEncoder().encode(archive)!);
-    } catch (e) {
-      throw Exception('ZIP creation failed: $e');
-    }
-  }
-}
-
-void _cleanOldReleases(String releasesDir) {
-  try {
-    final releaseFiles = Directory(releasesDir)
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.zip'))
-        .toList();
-
-    if (releaseFiles.length > 5) {
-      print('\n🧹 Cleaning up old releases (keeping latest 5)...');
-      // Sort by modified time (newest first)
-      releaseFiles.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
-      
-      // Delete all but the newest 5
-      for (var i = 5; i < releaseFiles.length; i++) {
-        final file = releaseFiles[i];
-        print('  - Deleting ${path.basename(file.path)}');
-        file.deleteSync();
-      }
-    }
-  } catch (e) {
-    print('⚠️ Could not clean old releases: $e');
-  }
+  File(zipPath)
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(ZipEncoder().encode(archive)!);
 }
