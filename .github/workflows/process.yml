@@ -13,7 +13,7 @@ jobs:
         working-directory: ./scripts
         
       - name: Process specs
-        run: dart run scripts/processor.dart
+        run: dart run processor.dart
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
