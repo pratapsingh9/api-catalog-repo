@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as path;
 
 void main() {
   final sourcesDir = Platform.environment['SOURCES_DIR'] ?? './sources';
@@ -48,8 +49,8 @@ class ApiProcessor {
   }
 
   String _getOutputPath(File source) {
-    final relative = source.path.replaceFirst(sourcesDir, '');
-    return outputDir + relative.replaceAll(RegExp(r'\.ya?ml$'), '.json');
+    final relative = path.relative(source.path, from: sourcesDir);
+    return path.join(outputDir, relative.replaceAll(RegExp(r'\.ya?ml$'), '.json'));
   }
 
   bool _isYaml(String path) => path.endsWith('.yaml') || path.endsWith('.yml');
