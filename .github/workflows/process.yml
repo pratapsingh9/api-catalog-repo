@@ -1,0 +1,23 @@
+name: Process API Specs
+on: [push, pull_request]
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        
+      - name: Process specs
+        run: dart run scripts/processor.dart
+        env:
+          SOURCES_DIR: './sources'
+          OUTPUT_DIR: './generated'
+          
+      - name: Commit changes
+        run: |
+          git config --global user.name "API Catalog Bot"
+          git config --global user.email "bot@apicatalog.com"
+          git add generated/
+          git commit -m "Update generated JSON" || echo "No changes"
+          git push
