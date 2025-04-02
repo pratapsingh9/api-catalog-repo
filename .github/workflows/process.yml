@@ -19,7 +19,7 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        run: dart pub add yaml path archive
+        run: dart pub get
         working-directory: ./scripts
 
       - name: Create directories
@@ -28,7 +28,7 @@ jobs:
           mkdir -p releases
 
       - name: Run conversion script
-        run: dart run scripts/processor.dart
+        run: dart run processor.dart
         working-directory: ./scripts
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}

@@ -125,8 +125,6 @@ class ZipCreator {
   }
 }
 
-
-// as
 void _cleanOldReleases(String releasesDir) {
   try {
     final releaseFiles = Directory(releasesDir)
