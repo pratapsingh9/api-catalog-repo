@@ -2,44 +2,52 @@ name: Release Generated Folder Only
 on:
   push:
     branches: [main]
-
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Install Dart
         uses: dart-lang/setup-dart@v1
         with:
           version: '3.2.1'
-
+      
       - name: Generate JSON specs
         run: |
+          echo "Starting JSON generation process..."
           dart pub get
           dart run processor.dart
+          echo "JSON generation completed."
         working-directory: ./scripts
         env:
           SOURCES_DIR: '../sources'
           OUTPUT_DIR: '../generated'
-
+      
       - name: Verify generated files
         run: |
+          echo "Verifying generated files..."
           if [ ! -d "generated" ] || [ -z "$(ls -A generated)" ]; then
             echo "❌ Error: No files in generated directory"
             exit 1
           fi
           echo "✅ Generated files verified"
-
+          echo "Contents of generated directory:"
+          find generated -type f | sort
+      
       - name: Create Clean ZIP
         run: |
+          echo "Creating ZIP file..."
           TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
           
-          # KEY FIX: Use '*/.' to only include contents
-          (cd generated && zip -r ../generated-$TIMESTAMP.zip */.)
+          # List directory structure before zipping
+          echo "Directory structure before zipping:"
+          find generated -type f | sort
+          
+          # Create zip with just the contents (no extra parent directories)
+          (cd generated && zip -r ../generated-$TIMESTAMP.zip .)
           
           # Debug output
           echo "ZIP contents:"
@@ -47,14 +55,25 @@ jobs:
           
           mkdir -p release_assets
           mv generated-$TIMESTAMP.zip release_assets/
+          echo "ZIP file moved to release_assets/"
           echo "ZIP_PATH=release_assets/generated-$TIMESTAMP.zip" >> $GITHUB_ENV
           echo "RELEASE_TAG=generated-$TIMESTAMP" >> $GITHUB_ENV
-
+          echo "✅ ZIP creation completed: generated-$TIMESTAMP.zip"
+      
       - name: Publish Release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: ${{ env.ZIP_PATH }}
           tag_name: ${{ env.RELEASE_TAG }}
           name: "API Specs (${{ env.RELEASE_TAG }})"
           body: "Contains only the generated JSON files"
           prerelease: false
+        id: release
+      
+      - name: Release Output
+        run: |
+          echo "✅ Release published successfully"
+          echo "Release URL: ${{ steps.release.outputs.url }}"
+          echo "Download URL: ${{ steps.release.outputs.assets[0].browser_download_url }}"
