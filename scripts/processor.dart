@@ -11,70 +11,76 @@ void main() {
     
     // Set directory paths
     final projectRoot = path.normalize(path.join(path.dirname(Platform.script.toFilePath()), '..'));
-    final sourcesDir = path.join(projectRoot, 'sources');
-    final outputDir = path.join(projectRoot, 'generated');
+    final inputDir = path.join(projectRoot, 'generated');
     final releasesDir = path.join(projectRoot, 'releases');
 
     // Create directories if they don't exist
     Directory(releasesDir).createSync(recursive: true);
-    Directory(outputDir).createSync(recursive: true);
 
-    // Process YAML files into a single JSON
-    print('📦 Processing YAML files into single final.json...');
-    final combinedJson = processAllYamlFiles(sourcesDir);
+    // Process all JSON files in the generated directory
+    final jsonFiles = Directory(inputDir)
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.json'))
+        .toList();
 
-    // Write the combined JSON to final.json
-    final outputFile = File(path.join(outputDir, 'final.json'));
-    outputFile.writeAsStringSync(JsonEncoder.withIndent('  ').convert(combinedJson));
-    print('✓ Created final.json');
+    if (jsonFiles.isEmpty) {
+      throw Exception('No JSON files found in $inputDir');
+    }
 
-    // Create ZIP archive
-    final zipName = 'generated-json-$runId.zip';
-    final zipPath = path.join(releasesDir, zipName);
-    ZipCreator.createFromDirectory(outputDir, zipPath);
+    print('Found ${jsonFiles.length} JSON file(s) to process:');
+    
+    // Process each JSON file to YAML and create individual zip files
+    for (final jsonFile in jsonFiles) {
+      try {
+        final fileName = path.basenameWithoutExtension(jsonFile.path);
+        final yamlContent = _convertJsonToYaml(jsonFile);
+        
+        // Create a temporary directory for the YAML file
+        final tempDir = Directory(path.join(Directory.systemTemp.path, 'yaml_temp_$fileName'));
+        tempDir.createSync(recursive: true);
+        
+        // Write the YAML file
+        final yamlFile = File(path.join(tempDir.path, '$fileName.yaml'));
+        yamlFile.writeAsStringSync(yamlContent);
+        
+        // Create zip file
+        final zipName = '$fileName-$runId.zip';
+        final zipPath = path.join(releasesDir, zipName);
+        ZipCreator.createFromDirectory(tempDir.path, zipPath);
+        
+        // Clean up temporary directory
+        tempDir.deleteSync(recursive: true);
+        
+        print('✓ Created $zipPath');
+      } catch (e) {
+        throw Exception('Failed to process ${jsonFile.path}: $e');
+      }
+    }
     
     // Clean up old releases (keep last 5)
     _cleanOldReleases(releasesDir);
     
-    print('\n✅ Successfully created $zipPath');
+    print('\n✅ Successfully created ${jsonFiles.length} ZIP file(s) in $releasesDir');
   } catch (e) {
     print('\n❌ Error: $e');
     exit(1);
   }
 }
 
-Map<String, dynamic> processAllYamlFiles(String sourcesDir) {
-  final combined = <String, dynamic>{};
-  final files = Directory(sourcesDir)
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'))
-      .toList();
-
-  if (files.isEmpty) throw Exception('No YAML files found in $sourcesDir');
-  
-  print('Found ${files.length} YAML file(s):');
-  
-  for (final file in files) {
-    try {
-      final content = file.readAsStringSync();
-      final json = jsonDecode(jsonEncode(loadYaml(content)));
-      final fileName = path.basenameWithoutExtension(file.path);
-      
-      combined[fileName] = json;
-      print('  ✓ Added ${path.basename(file.path)} to final.json');
-    } catch (e) {
-      throw Exception('Failed to process ${file.path}: $e');
-    }
+String _convertJsonToYaml(File jsonFile) {
+  try {
+    final jsonContent = jsonFile.readAsStringSync();
+    final jsonData = jsonDecode(jsonContent);
+    return jsonData is Map ? YamlMap.wrap(jsonData).toString() : jsonData.toString();
+  } catch (e) {
+    throw Exception('JSON to YAML conversion failed: $e');
   }
-  
-  return combined;
 }
 
 class ZipCreator {
   static void createFromDirectory(String sourceDir, String zipPath) {
     try {
-      print('\n🗜 Creating ZIP archive...');
       final archive = Archive();
       final files = Directory(sourceDir).listSync(recursive: true).whereType<File>();
       
@@ -87,23 +93,14 @@ class ZipCreator {
           file.lengthSync(),
           file.readAsBytesSync()
         ));
-        print('  + $relativePath');
       });
 
       File(zipPath)
         ..parent.createSync(recursive: true)
         ..writeAsBytesSync(ZipEncoder().encode(archive)!);
-      
-      print('✓ Created ${path.basename(zipPath)} (${_formatSize(File(zipPath).lengthSync())})');
     } catch (e) {
       throw Exception('ZIP creation failed: $e');
     }
-  }
-
-  static String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / 1048576).toStringAsFixed(1)} MB';
   }
 }
 

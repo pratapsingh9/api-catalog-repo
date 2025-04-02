@@ -1,4 +1,4 @@
-name: Convert YAML to JSON and Release
+name: Convert JSON to YAML and Release
 on:
   push:
     branches: [main]
@@ -22,10 +22,8 @@ jobs:
         run: dart pub get
         working-directory: ./scripts
 
-      - name: Create directories
-        run: |
-          mkdir -p generated
-          mkdir -p releases
+      - name: Create releases directory
+        run: mkdir -p releases
 
       - name: Run conversion script
         run: dart run processor.dart
@@ -41,12 +39,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            generated/final.json
-            releases/generated-json-${{ github.run_id }}.zip
+          files: releases/*.zip
           tag_name: "v${{ github.run_number }}"
-          name: "JSON Conversion v${{ github.run_number }}"
-          body: "Automated release of combined JSON from YAML sources"
+          name: "YAML Conversion v${{ github.run_number }}"
+          body: "Automated release of YAML files converted from JSON"
           draft: false
           prerelease: false
           generate_release_notes: true
