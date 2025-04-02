@@ -9,6 +9,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   archive: ^4.0.5
+  yaml: ^3.1.3
   # path: ^1.8.0
 
 dev_dependencies:
