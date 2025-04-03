@@ -34,7 +34,7 @@ jobs:
         working-directory: ./scripts
 
       - name: Generate tag name
-        run: echo "TAG_NAME=release-$(" >> $GITHUB_ENV
+        run: echo "TAG_NAME=final" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
