@@ -20,24 +20,57 @@ jobs:
         with:
           sdk: stable
 
+      - name: Create project structure
+        run: |
+          mkdir -p scripts
+          mkdir -p sources
+          mkdir -p releases
+          
+      - name: Create pubspec.yaml if not exists
+        run: |
+          if [ ! -f "scripts/pubspec.yaml" ]; then
+            cat > scripts/pubspec.yaml << 'EOF'
+            name: yaml_processor
+            description: A script to convert YAML to JSON
+            version: 1.0.0
+            environment:
+              sdk: '>=2.12.0 <3.0.0'
+            dependencies:
+              yaml: ^3.1.0
+              path: ^1.8.0
+              archive: ^3.1.2
+            EOF
+          fi
+          
+      - name: Copy processor script
+        run: |
+          cat > scripts/processor.dart << 'EOF'
+          // Copy the entire code from the fixed-processor-dart artifact here
+          EOF
+
       - name: Install dependencies
         run: dart pub get
         working-directory: ./scripts
 
-      - name: Ensure directories exist
-        run: |
-          mkdir -p sources
-          mkdir -p releases
-
       - name: Run conversion
         run: dart run processor.dart
-        working-directory: ./scripts
+        working-directory: ./
+
+      - name: List files for debugging
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files in current directory:"
+          ls -la
+          echo "Files in releases directory:"
+          ls -la releases || echo "releases directory not found"
 
       - name: Generate tag name
         run: echo "TAG_NAME=release-$(date +%s)" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
+        if: fileExists('releases/final.zip')
         with:
           files: releases/final.zip
           tag_name: ${{ env.TAG_NAME }}
