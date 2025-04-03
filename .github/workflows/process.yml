@@ -12,7 +12,8 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -32,11 +33,14 @@ jobs:
         run: dart run processor.dart
         working-directory: ./scripts
 
-      - name: Create Release
+      - name: Generate tag name
+        run: echo "TAG_NAME=final" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: "release-$(date +%s)"
+          tag_name: ${{ env.TAG_NAME }}
           name: "Final Conversion"
           draft: false
           prerelease: false
