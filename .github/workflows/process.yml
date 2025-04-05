@@ -22,38 +22,45 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dart pub add openapi_spec
           dart pub get
 
-      - name: Ensure directory structure
+      - name: Prepare directories
         run: |
           mkdir -p sources
           mkdir -p releases
-          # Add sample OpenAPI file if sources is empty
+          # Add sample if no files exist (optional)
           if [ -z "$(ls -A sources)" ]; then
-            echo "ℹ️ No files in sources directory, adding sample OpenAPI spec"
-            curl -o sources/sample-openapi.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
+            echo "Adding sample OpenAPI file"
+            curl -o sources/sample.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
           fi
 
-      - name: Run OpenAPI validation and conversion
-        run: dart run main.dart
-        env:
-          VALIDATE_OPENAPI: "true"
+      - name: Run conversion
+        run: dart run bin/main.dart
 
       - name: Verify output
+        if: success()
         run: |
-          echo "Generated files:"
-          ls -lh releases/
-          unzip -l releases/final.zip
+          echo "Checking releases folder:"
+          ls -la releases/
+          if [ -f "releases/final.zip" ]; then
+            echo "Zip contents:"
+            unzip -l releases/final.zip
+          else
+            echo "No final.zip found!"
+            exit 1
+          fi
 
-      - name: Create GitHub Release
+      - name: Create Release
+        if: success() && contains(steps.verify.outcome, 'success')
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: final-$(date +%Y%m%d%H%M%S)
+          tag_name: release-$(date +%Y%m%d-%H%M%S)
           name: "OpenAPI JSON Bundle"
           draft: false
           prerelease: false
           body: |
-            Auto-generated OpenAPI JSON bundle
-            Contains validated OpenAPI specifications converted to JSON format
-            Generated at: $(date)
+            Generated OpenAPI JSON bundle
+            - Contains validated OpenAPI specs
+            - Generated at: $(date)
