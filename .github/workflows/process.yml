@@ -24,13 +24,12 @@ jobs:
         run: |
           dart pub add openapi_spec
           dart pub get
-        working-directory: ./scripts
 
       - name: Ensure directory structure
         run: |
           mkdir -p sources
           mkdir -p releases
-          # Add sample OpenAPI file if sources is empty (optional)
+          # Add sample OpenAPI file if sources is empty
           if [ -z "$(ls -A sources)" ]; then
             echo "ℹ️ No files in sources directory, adding sample OpenAPI spec"
             curl -o sources/sample-openapi.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
@@ -38,9 +37,8 @@ jobs:
 
       - name: Run OpenAPI validation and conversion
         run: dart run bin/main.dart
-        working-directory: ./scripts
         env:
-          VALIDATE_OPENAPI: "true"  # Optional flag you can use in your Dart code
+          VALIDATE_OPENAPI: "true"
 
       - name: Verify output
         run: |
