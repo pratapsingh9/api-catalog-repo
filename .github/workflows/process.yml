@@ -22,7 +22,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          dart pub add openapi_spec
           dart pub get
 
       - name: Ensure directory structure
@@ -36,7 +35,7 @@ jobs:
           fi
 
       - name: Run OpenAPI validation and conversion
-        run: dart run bin/main.dart
+        run: dart run main.dart
         env:
           VALIDATE_OPENAPI: "true"
 
