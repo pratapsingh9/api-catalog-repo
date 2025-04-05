@@ -1,4 +1,4 @@
-name: OpenAPI YAML to JSON Processor
+name: OpenAPI Processor
 
 on:
   push:
@@ -6,14 +6,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  convert-and-release:
+  process:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -21,59 +17,14 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        run: |
-          dart pub add archive path yaml openapi_spec
-          dart pub get
+        run: dart pub get
 
-      - name: Prepare directories
-        run: |
-          mkdir -p sources
-          mkdir -p releases
-          # Add sample if no files exist
-          if [ -z "$(ls -A sources)" ]; then
-            echo "Adding sample OpenAPI files"
-            curl -o sources/petstore.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
-            mkdir -p sources/nested
-            curl -o sources/nested/api.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/api-with-examples.yaml
-          fi
-
-      - name: Run conversion
+      - name: Convert YAML to JSON
         run: dart run main.dart
 
-      - name: Verify output
-        run: |
-          echo "Checking releases folder:"
-          ls -la releases/
-          if [ -f "releases/final.zip" ]; then
-            echo "Zip contents:"
-            unzip -l releases/final.zip
-            echo "Validating JSON files:"
-            TEMP_DIR=$(mktemp -d)
-            unzip releases/final.zip -d $TEMP_DIR
-            find $TEMP_DIR -name "*.json" | while read file; do
-              echo "Validating $file"
-              if ! jq empty "$file"; then
-                echo "❌ Invalid JSON in $file"
-                exit 1
-              fi
-            done
-            rm -rf $TEMP_DIR
-          else
-            echo "❌ No final.zip found!"
-            exit 1
-          fi
-
-      - name: Create Release
-        if: success()
-        uses: softprops/action-gh-release@v1
+      - name: Upload final.zip
+        uses: actions/upload-artifact@v3
         with:
-          files: releases/final.zip
-          tag_name: release-$(date +%Y%m%d-%H%M%S)
-          name: "OpenAPI JSON Bundle"
-          draft: false
-          prerelease: false
-          body: |
-            Generated OpenAPI JSON bundle
-            - Contains validated OpenAPI specs
-            - Preserves original directory structure
-            - Generated at: $(date)
+          name: final.zip
+          path: releases/final.zip
+          retention-days: 90

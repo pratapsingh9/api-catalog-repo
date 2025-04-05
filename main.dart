@@ -6,73 +6,37 @@ import 'package:yaml/yaml.dart';
 import 'package:openapi_spec/openapi_spec.dart';
 
 void main() {
-  try {
-    // 1. Setup directories
-    final sourcesDir = Directory('sources');
-    final generatedDir = Directory('generated');
-    final releasesDir = Directory('releases');
+  final sourcesDir = Directory('sources');
+  final releasesDir = Directory('releases');
+  releasesDir.createSync(recursive: true);
+  final zipFile = File(path.join(releasesDir.path, 'final.zip'));
 
-    // 2. Find YAML files
-    final yamlFiles = sourcesDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'))
-        .toList();
+  final yamlFiles = sourcesDir
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'));
 
-    if (yamlFiles.isEmpty) {
-      print('❌ No OpenAPI YAML files found in sources/');
-      exit(1);
-    }
+  if (yamlFiles.isEmpty) throw Exception('No YAML files found');
 
-    // 3. Process files
-    generatedDir.createSync(recursive: true);
-    final List<File> validFiles = [];
-
-    for (final file in yamlFiles) {
-      try {
-        // Validate OpenAPI
-        final content = file.readAsStringSync();
-        OpenApi.fromString(source: content, format: OpenApiFormat.yaml);
-
-        // Convert to JSON
-        final relativePath = path.relative(file.path, from: sourcesDir.path);
-        final jsonPath = path.join(generatedDir.path, 
-            path.setExtension(relativePath, '.json'));
-        
-        Directory(path.dirname(jsonPath)).createSync(recursive: true);
-        File(jsonPath).writeAsStringSync(
-          JsonEncoder.withIndent('  ').convert(loadYaml(content))
-        );
-        
-        validFiles.add(file);
-        print('✓ Valid OpenAPI: ${file.path}');
-      } catch (e) {
-        print('⚠️ Invalid OpenAPI (skipped): ${file.path} - ${e.toString().split('\n').first}');
-      }
-    }
-
-    if (validFiles.isEmpty) {
-      print('❌ No valid OpenAPI files found');
-      exit(1);
-    }
-
-    // 4. Create ZIP
-    final archive = Archive();
-    generatedDir.listSync(recursive: true).whereType<File>().forEach((file) {
+  final archive = Archive();
+  for (final file in yamlFiles) {
+    try {
+      final content = file.readAsStringSync();
+      OpenApi.fromString(source: content, format: OpenApiFormat.yaml);
+      final json = JsonEncoder.withIndent('  ').convert(loadYaml(content));
       archive.addFile(ArchiveFile(
-        path.relative(file.path, from: generatedDir.path),
-        file.lengthSync(),
-        file.readAsBytesSync()
+        path.relative(file.path, from: sourcesDir.path)
+            .replaceAll('.yaml', '.json')
+            .replaceAll('.yml', '.json'),
+        json.length,
+        utf8.encode(json)
       ));
-    });
-
-    releasesDir.createSync(recursive: true);
-    File(path.join(releasesDir.path, 'final.zip'))
-      ..writeAsBytesSync(ZipEncoder().encode(archive)!);
-    
-    print('\n✅ Created ZIP with ${validFiles.length} OpenAPI specs');
-  } catch (e) {
-    print('\n❌ Fatal error: ${e.toString()}');
-    exit(1);
+    } catch (e) {
+      print('⚠️ Skipped ${file.path}: ${e.toString().split('\n').first}');
+    }
   }
+
+  // 3. Save ZIP
+  zipFile.writeAsBytesSync(ZipEncoder().encode(archive)!);
+  print('✅ Created ${zipFile.path} (${archive.files.length} files)');
 }
