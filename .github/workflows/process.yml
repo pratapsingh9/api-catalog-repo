@@ -1,4 +1,4 @@
-name: YAML to JSON Processor
+name: OpenAPI YAML to JSON Processor
 
 on:
   push:
@@ -21,26 +21,42 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        run: dart pub get
+        run: |
+          dart pub add openapi_spec
+          dart pub get
         working-directory: ./scripts
 
-      - name: Ensure directories exist
+      - name: Ensure directory structure
         run: |
           mkdir -p sources
           mkdir -p releases
+          # Add sample OpenAPI file if sources is empty (optional)
+          if [ -z "$(ls -A sources)" ]; then
+            echo "ℹ️ No files in sources directory, adding sample OpenAPI spec"
+            curl -o sources/sample-openapi.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
+          fi
 
-      - name: Run conversion
-        run: dart run processor.dart
+      - name: Run OpenAPI validation and conversion
+        run: dart run bin/main.dart
         working-directory: ./scripts
+        env:
+          VALIDATE_OPENAPI: "true"  # Optional flag you can use in your Dart code
 
-      - name: Generate tag name
-        run: echo "TAG_NAME=final" >> $GITHUB_ENV
+      - name: Verify output
+        run: |
+          echo "Generated files:"
+          ls -lh releases/
+          unzip -l releases/final.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: ${{ env.TAG_NAME }}
-          name: "Final Conversion"
+          tag_name: final-$(date +%Y%m%d%H%M%S)
+          name: "OpenAPI JSON Bundle"
           draft: false
           prerelease: false
+          body: |
+            Auto-generated OpenAPI JSON bundle
+            Contains validated OpenAPI specifications converted to JSON format
+            Generated at: $(date)
