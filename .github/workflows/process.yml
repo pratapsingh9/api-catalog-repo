@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Run conversion
-        run: dart run bin/main.dart
+        run: dart run main.dart
 
       - name: Verify output
         if: success()
