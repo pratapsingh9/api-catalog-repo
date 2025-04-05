@@ -16,13 +16,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Dart
-        uses: dart-lang/setup-dart@v3
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
       - name: Install dependencies
         run: |
-          dart pub add openapi_spec archive path yaml
+          dart pub add openapi_spec
           dart pub get
 
       - name: Prepare directories
@@ -31,19 +31,20 @@ jobs:
           mkdir -p releases
           if [ -z "$(ls -A sources)" ]; then
             echo "Adding sample OpenAPI file"
-            curl -o sources/petstore.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
+            curl -o sources/sample.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
           fi
 
       - name: Run conversion
         run: dart run main.dart
 
       - name: Verify output
-        id: verify
+        id: verify  # Added ID
+        if: success()
         run: |
           echo "Checking releases folder:"
           ls -la releases/
           if [ -f "releases/final.zip" ]; then
-            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "valid=true" >> $GITHUB_OUTPUT  # Set output
             echo "Zip contents:"
             unzip -l releases/final.zip
           else
@@ -53,15 +54,14 @@ jobs:
 
       - name: Generate timestamp
         if: steps.verify.outputs.valid == 'true'
-        id: timestamp
-        run: echo "tag=release-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        run: echo "RELEASE_TAG=release-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
 
       - name: Create Release
-        if: steps.verify.outputs.valid == 'true'
+        if: steps.verify.outputs.valid == 'true' 
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: ${{ steps.timestamp.outputs.tag }}
+          tag_name: ${{ env.RELEASE_TAG }}
           name: "OpenAPI JSON Bundle"
           draft: false
           prerelease: false
