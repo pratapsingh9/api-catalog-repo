@@ -29,7 +29,6 @@ jobs:
         run: |
           mkdir -p sources
           mkdir -p releases
-          # Add sample if no files exist (optional)
           if [ -z "$(ls -A sources)" ]; then
             echo "Adding sample OpenAPI file"
             curl -o sources/sample.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
@@ -39,11 +38,13 @@ jobs:
         run: dart run main.dart
 
       - name: Verify output
+        id: verify  # Added ID
         if: success()
         run: |
           echo "Checking releases folder:"
           ls -la releases/
           if [ -f "releases/final.zip" ]; then
+            echo "valid=true" >> $GITHUB_OUTPUT  # Set output
             echo "Zip contents:"
             unzip -l releases/final.zip
           else
@@ -51,12 +52,16 @@ jobs:
             exit 1
           fi
 
+      - name: Generate timestamp
+        if: steps.verify.outputs.valid == 'true'
+        run: echo "RELEASE_TAG=release-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+
       - name: Create Release
-        if: success() && contains(steps.verify.outcome, 'success')
+        if: steps.verify.outputs.valid == 'true' 
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: release-$(date +%Y%m%d-%H%M%S)
+          tag_name: ${{ env.RELEASE_TAG }}
           name: "OpenAPI JSON Bundle"
           draft: false
           prerelease: false
