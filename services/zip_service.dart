@@ -1,4 +1,3 @@
-// services/zip_service.dart
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as path;
@@ -21,6 +20,9 @@ class ZipService {
     zipFile
       ..parent.createSync(recursive: true)
       ..writeAsBytesSync(ZipEncoder().encode(archive)!);
+    
+    print('\n📦 Created ZIP archive at: ${zipFile.path}');
+    print('  Contains ${files.length} files');
   }
 
   void createEmptyZip(String releasesDir) {

@@ -36,17 +36,18 @@ class OpenAPIProcessor {
     final yamlFiles = fileService.findYamlFiles(directories.sourcesDir);
     
     if (yamlFiles.isEmpty) {
+      print('ℹ️ No YAML files found in sources directory');
       zipService.createEmptyZip(directories.releasesDir);
       exit(0);
     }
 
     // Convert and package files
     final tempDir = fileService.createTempDir();
-    yamlProcessor.processFiles(yamlFiles, tempDir);
+    yamlProcessor.processFiles(yamlFiles, tempDir, directories.sourcesDir);
     zipService.createZip(tempDir, directories.releasesDir);
     
     // Cleanup
     fileService.cleanup(tempDir);
-    print('\n✅ Success! Created final.zip');
+    print('\n✅ Success! Created final.zip in releases directory');
   }
 }

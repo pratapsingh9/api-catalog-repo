@@ -1,4 +1,3 @@
-// services/file_service.dart
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
@@ -35,13 +34,17 @@ class FileService {
   }
 
   Directory createTempDir() {
-    final tempDir = Directory(path.join(Directory.systemTemp.path, 'json_output'));
+    final tempDir = Directory(path.join(Directory.systemTemp.path, 'openapi_json_${DateTime.now().millisecondsSinceEpoch}'));
     tempDir.createSync(recursive: true);
     return tempDir;
   }
 
   void cleanup(Directory directory) {
-    directory.deleteSync(recursive: true);
+    try {
+      directory.deleteSync(recursive: true);
+    } catch (e) {
+      print('⚠️ Could not clean up temp directory: ${directory.path}');
+    }
   }
 
   void _ensureDirectoryExists(String path) {
