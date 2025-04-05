@@ -16,34 +16,34 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Dart
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@v3
         with:
           sdk: stable
 
       - name: Install dependencies
         run: |
-          dart pub add openapi_spec
+          dart pub add openapi_spec archive path yaml
           dart pub get
 
       - name: Prepare directories
         run: |
           mkdir -p sources
           mkdir -p releases
-          # Add sample if no files exist (optional)
           if [ -z "$(ls -A sources)" ]; then
             echo "Adding sample OpenAPI file"
-            curl -o sources/sample.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
+            curl -o sources/petstore.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
           fi
 
       - name: Run conversion
         run: dart run main.dart
 
       - name: Verify output
-        if: success()
+        id: verify
         run: |
           echo "Checking releases folder:"
           ls -la releases/
           if [ -f "releases/final.zip" ]; then
+            echo "valid=true" >> $GITHUB_OUTPUT
             echo "Zip contents:"
             unzip -l releases/final.zip
           else
@@ -51,12 +51,17 @@ jobs:
             exit 1
           fi
 
+      - name: Generate timestamp
+        if: steps.verify.outputs.valid == 'true'
+        id: timestamp
+        run: echo "tag=release-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+
       - name: Create Release
-        if: success() && contains(steps.verify.outcome, 'success')
+        if: steps.verify.outputs.valid == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: releases/final.zip
-          tag_name: release-$(date +%Y%m%d-%H%M%S)
+          tag_name: ${{ steps.timestamp.outputs.tag }}
           name: "OpenAPI JSON Bundle"
           draft: false
           prerelease: false
