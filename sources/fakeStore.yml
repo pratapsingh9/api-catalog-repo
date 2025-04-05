@@ -1,0 +1,63 @@
+openapi: 3.0.0
+info:
+  title: Fake Store API
+  description: A free REST API for e-commerce prototyping
+  version: 1.0.0
+
+servers:
+  - url: https://fakestoreapi.com
+
+paths:
+  /products:
+    get:
+      summary: Get all products
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /products/{id}:
+    get:
+      summary: Get single product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        price:
+          type: number
+        description:
+          type: string
+        category:
+          type: string
+        image:
+          type: string
+        rating:
+          type: object
+          properties:
+            rate:
+              type: number
+            count:
+              type: integer
