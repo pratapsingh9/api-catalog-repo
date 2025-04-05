@@ -1,4 +1,4 @@
-name: OpenAPI Processor
+name: OpenAPI YAML to JSON Processor
 
 on:
   push:
@@ -6,25 +6,61 @@ on:
   workflow_dispatch:
 
 jobs:
-  process:
+  convert-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Dart
-        uses: dart-lang/setup-dart@v3  # Updated to v3
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
       - name: Install dependencies
-        run: dart pub get
+        run: |
+          dart pub add openapi_spec
+          dart pub get
 
-      - name: Convert YAML to JSON
+      - name: Prepare directories
+        run: |
+          mkdir -p sources
+          mkdir -p releases
+          # Add sample if no files exist (optional)
+          if [ -z "$(ls -A sources)" ]; then
+            echo "Adding sample OpenAPI file"
+            curl -o sources/sample.yaml https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml
+          fi
+
+      - name: Run conversion
         run: dart run main.dart
 
-      - name: Upload final.zip
-        uses: actions/upload-artifact@v4  # Updated to v4
+      - name: Verify output
+        if: success()
+        run: |
+          echo "Checking releases folder:"
+          ls -la releases/
+          if [ -f "releases/final.zip" ]; then
+            echo "Zip contents:"
+            unzip -l releases/final.zip
+          else
+            echo "No final.zip found!"
+            exit 1
+          fi
+
+      - name: Create Release
+        if: success() && contains(steps.verify.outcome, 'success')
+        uses: softprops/action-gh-release@v1
         with:
-          name: final.zip
-          path: releases/final.zip
-          retention-days: 90
+          files: releases/final.zip
+          tag_name: release-$(date +%Y%m%d-%H%M%S)
+          name: "OpenAPI JSON Bundle"
+          draft: false
+          prerelease: false
+          body: |
+            Generated OpenAPI JSON bundle
+            - Contains validated OpenAPI specs
+            - Generated at: $(date)
