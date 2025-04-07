@@ -1,0 +1,41 @@
+openapi: 3.0.0
+info:
+  title: Bored API
+  version: 1.0.0
+  description: A free API that returns random activities to fight boredom.
+
+servers:
+  - url: https://www.boredapi.com/api
+
+paths:
+  /activity:
+    get:
+      summary: Get a random activity
+      description: Returns a random activity suggestion.
+      responses:
+        '200':
+          description: A random activity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+
+components:
+  schemas:
+    Activity:
+      type: object
+      properties:
+        activity:
+          type: string
+        type:
+          type: string
+        participants:
+          type: integer
+        price:
+          type: number
+        link:
+          type: string
+        key:
+          type: string
+        accessibility:
+          type: number
