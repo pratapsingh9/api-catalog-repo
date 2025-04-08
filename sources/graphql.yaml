@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: GraphQL API
+  version: 1.0.0
+  description: |
+    A generic GraphQL endpoint.
+    Use GraphQL queries, mutations, and subscriptions via POST requests.
+servers:
+  - url: https://api.example.com
+
+paths:
+  /graphql:
+    post:
+      summary: GraphQL endpoint
+      description: Use this endpoint to send GraphQL queries and mutations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The GraphQL query string
+                variables:
+                  type: object
+                  additionalProperties: true
+                  description: Optional variables for the query
+                operationName:
+                  type: string
+                  description: Optional operation name if the query has multiple operations
+              required:
+                - query
+      responses:
+        '200':
+          description: Successful GraphQL response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: The response data returned by the GraphQL server
+                  errors:
+                    type: array
+                    description: Any errors that occurred during query execution
+                    items:
+                      type: object
+        '400':
+          description: Bad request (e.g. invalid query)
+        '500':
+          description: Internal server error
+
+components: {}
